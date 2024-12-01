@@ -14,13 +14,13 @@ const LATEST_ROOT_INO: u64 = DayAndYear::new(2000, 0).to_ino();
 const AOC_FIRST_YEAR: u32 = 2015;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct DayAndYear {
-    year: u32,
-    day: u8,
+pub struct DayAndYear {
+    pub year: u32,
+    pub day: u8,
 }
 
 impl DayAndYear {
-    fn last_unlocked_puzzle() -> DayAndYear {
+    pub fn last_unlocked_puzzle() -> DayAndYear {
         let now = Utc::now();
         let current_time: DateTime<FixedOffset> = now.with_timezone(
             &FixedOffset::west_opt(3600 * 5)
@@ -41,22 +41,22 @@ impl DayAndYear {
         DayAndYear::new(year as u32, day as u8)
     }
 
-    const fn new(year: u32, day: u8) -> DayAndYear {
+    pub const fn new(year: u32, day: u8) -> DayAndYear {
         DayAndYear { year, day }
     }
 
-    const fn from_ino(ino: u64) -> DayAndYear {
+    pub const fn from_ino(ino: u64) -> DayAndYear {
         DayAndYear {
             year: (ino / 100) as u32,
             day: (ino % 100) as u8,
         }
     }
 
-    const fn to_ino(self) -> u64 {
+    pub const fn to_ino(self) -> u64 {
         (self.year * 100) as u64 + self.day as u64
     }
 
-    const fn file_type(self) -> Result<fuser::FileType, libc::c_int> {
+    pub const fn file_type(self) -> Result<fuser::FileType, libc::c_int> {
         use fuser::FileType;
 
         match self.day {
