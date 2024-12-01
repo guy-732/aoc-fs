@@ -1,0 +1,15 @@
+[package]
+name = "aoc-fs"
+version = "0.1.0"
+edition = "2021"
+description = "Advent of Code filesystem, using FUSE"
+
+[dependencies]
+fuser = "0.15"
+pretty_env_logger = "0.5"
+log = "0.4"
+clap = { version = "4.5", features = ["derive"] }
+chrono = "0.4"
+libc = "0.2"
+toml = "0.8"
+serde = { version = "1.0", features = ["serde_derive"] }
