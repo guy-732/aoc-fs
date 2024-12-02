@@ -1,0 +1,10 @@
+[aoc]
+# username can allow you to use multiple AoC accounts
+# you can leave this blank if you only use aoc-fs with 1 account
+username = ""
+
+# We cannot identify using this token as they're only valid for 1 month after creation
+session = "<AOC session token>"
+
+[cache]
+dir = "/home/user/.local/share/aoc-fs"
