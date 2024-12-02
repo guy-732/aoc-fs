@@ -119,10 +119,8 @@ impl AoCFilesystem {
             return Err(libc::ENOENT);
         }
 
-        if day_info.year == latest.year && day_info.day <= 25 {
-            if day_info.day > latest.day {
-                return Err(libc::ENOENT);
-            }
+        if day_info.year == latest.year && day_info.day <= 25 && day_info.day > latest.day {
+            return Err(libc::ENOENT);
         }
 
         let mut attr = self.getattr_template(ino);
@@ -164,7 +162,7 @@ impl AoCFilesystem {
             Err(_) => return Err(libc::ENOENT),
         };
 
-        if day < 1 || day > 25 {
+        if !(1..=25).contains(&day) {
             return Err(libc::ENOENT);
         }
 
@@ -208,7 +206,7 @@ impl AoCFilesystem {
 
         let day = if latest.year == year { latest.day } else { 25 };
 
-        return Ok(format!("day{day:02}.txt"));
+        Ok(format!("day{day:02}.txt"))
     }
 
     fn open_day_input(&self, day: DayAndYear) -> Result<File, libc::c_int> {
@@ -249,12 +247,12 @@ impl AoCFilesystem {
         }
 
         match File::options().read(true).open(&input_path) {
-            Ok(f) => return Ok(f),
+            Ok(f) => Ok(f),
             Err(e) => {
                 log::error!("error opening {:?} after downloading it: {}", input_path, e);
-                return Err(e
+                Err(e
                     .raw_os_error()
-                    .expect("File::open() => Err(e) => e.raw_os_error()"));
+                    .expect("File::open() => Err(e) => e.raw_os_error()"))
             }
         }
     }
@@ -379,18 +377,14 @@ impl fuser::Filesystem for AoCFilesystem {
 
         let latest = DayAndYear::last_unlocked_puzzle();
         if ino == fuser::FUSE_ROOT_ID {
-            if offset == 0 {
-                if reply.add(ino, 1, fuser::FileType::Directory, ".") {
-                    reply.ok();
-                    return;
-                }
+            if offset == 0 && reply.add(ino, 1, fuser::FileType::Directory, ".") {
+                reply.ok();
+                return;
             }
 
-            if offset <= 1 {
-                if reply.add(fuser::FUSE_ROOT_ID, 2, fuser::FileType::Directory, "..") {
-                    reply.ok();
-                    return;
-                }
+            if offset <= 1 && reply.add(fuser::FUSE_ROOT_ID, 2, fuser::FileType::Directory, "..") {
+                reply.ok();
+                return;
             }
 
             let offset2 = if offset >= 2 {
@@ -436,18 +430,14 @@ impl fuser::Filesystem for AoCFilesystem {
             return;
         }
 
-        if offset == 0 {
-            if reply.add(ino, 1, fuser::FileType::Directory, ".") {
-                reply.ok();
-                return;
-            }
+        if offset == 0 && reply.add(ino, 1, fuser::FileType::Directory, ".") {
+            reply.ok();
+            return;
         }
 
-        if offset <= 1 {
-            if reply.add(fuser::FUSE_ROOT_ID, 2, fuser::FileType::Directory, "..") {
-                reply.ok();
-                return;
-            }
+        if offset <= 1 && reply.add(fuser::FUSE_ROOT_ID, 2, fuser::FileType::Directory, "..") {
+            reply.ok();
+            return;
         }
 
         let offset2 = if offset >= 2 {
