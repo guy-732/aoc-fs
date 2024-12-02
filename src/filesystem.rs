@@ -1,7 +1,15 @@
 use core::str;
 use std::{
     fs::{self, File},
-    os::{fd::IntoRawFd, unix::ffi::OsStrExt},
+    io,
+    mem::ManuallyDrop,
+    os::{
+        fd::{FromRawFd, IntoRawFd},
+        unix::{
+            ffi::OsStrExt,
+            fs::{FileExt, MetadataExt},
+        },
+    },
     time::{Duration, UNIX_EPOCH},
 };
 
@@ -106,13 +114,31 @@ impl AoCFilesystem {
         }
     }
 
-    fn getattr_impl(&mut self, ino: u64) -> Result<(Duration, FileAttr), libc::c_int> {
+    fn file_size(&self, day_info: DayAndYear) -> u64 {
+        let mut path = self.config.cache_dir().to_path_buf();
+        path.push(day_info.year.to_string());
+        path.push(format!("day{:02}.txt", day_info.day));
+
+        match fs::metadata(path) {
+            Ok(metadata) => metadata.size(),
+            Err(err) => {
+                if err.kind() != io::ErrorKind::NotFound {
+                    log::warn!("cache_dir metadata error: {}", err);
+                }
+
+                4096
+            }
+        }
+    }
+
+    fn getattr_impl(&self, ino: u64) -> Result<(Duration, FileAttr), libc::c_int> {
         let latest = DayAndYear::last_unlocked_puzzle();
         let day_info = DayAndYear::from_ino(ino);
         if day_info.year < AOC_FIRST_YEAR || day_info.year > latest.year {
             if ino == LATEST_ROOT_INO {
                 let mut attr = self.getattr_template(ino);
                 attr.kind = fuser::FileType::Symlink;
+                attr.size = latest.year.to_string().len() as u64;
                 return Ok((Duration::from_secs(1), attr));
             }
 
@@ -127,7 +153,7 @@ impl AoCFilesystem {
         match day_info.file_type()? {
             fuser::FileType::RegularFile => {
                 attr.blksize = 4096;
-                attr.size = 4096;
+                attr.size = self.file_size(day_info);
                 attr.blocks = 1;
             }
             fuser::FileType::Directory => {
@@ -138,6 +164,7 @@ impl AoCFilesystem {
             fuser::FileType::Symlink => {
                 attr.kind = fuser::FileType::Symlink;
                 attr.perm = 0o777;
+                attr.size = 9;
             }
             _ => unreachable!("File type was neither Directory, RegularFile nor Symlink"),
         }
@@ -519,5 +546,60 @@ impl fuser::Filesystem for AoCFilesystem {
                 reply.error(err);
             }
         }
+    }
+
+    fn release(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        ino: u64,
+        fh: u64,
+        _flags: i32,
+        _lock_owner: Option<u64>,
+        _flush: bool,
+        reply: fuser::ReplyEmpty,
+    ) {
+        let day = DayAndYear::from_ino(ino);
+        log::trace!("release(close) \"{}/day{:02}.txt\"", day.year, day.day);
+        let fd = unsafe { File::from_raw_fd(fh as i32) };
+        drop(fd);
+
+        reply.ok();
+    }
+
+    fn read(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        ino: u64,
+        fh: u64,
+        offset: i64,
+        size: u32,
+        _flags: i32,
+        _lock_owner: Option<u64>,
+        reply: fuser::ReplyData,
+    ) {
+        let day = DayAndYear::from_ino(ino);
+        log::trace!(
+            "read(\"{}/day{:02}.txt\", offset={offset}, size={size})",
+            day.year,
+            day.day
+        );
+
+        let fd = ManuallyDrop::new(unsafe { File::from_raw_fd(fh as i32) });
+        let size = fd
+            .metadata()
+            .expect("File::metadata()")
+            .size()
+            .min(size as u64) as usize;
+
+        let mut buff = vec![0; size];
+        match fd.read_exact_at(&mut buff, offset.try_into().unwrap_or(0)) {
+            Ok(()) => (),
+            Err(err) => {
+                reply.error(err.raw_os_error().unwrap_or(libc::EINVAL));
+                return;
+            }
+        }
+
+        reply.data(&buff);
     }
 }

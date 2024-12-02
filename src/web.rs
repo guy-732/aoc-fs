@@ -12,7 +12,7 @@ use crate::filesystem::DayAndYear;
 
 const REQUEST_TIMEOUT_SECS: u64 = 30;
 const USER_AGENT: &str = "aoc-fs (https://github.com/guy_732/aoc-fs by guilhem.chaillou@gmail.com)";
-const BASE_URL: &str = "https://adventofcode.com/";
+const BASE_URL: &str = "https://adventofcode.com";
 
 pub fn download_input(day: DayAndYear, save_path: &Path, session: &str) -> io::Result<()> {
     let url = format!("{BASE_URL}/{}/day/{}/input", day.year, day.day);
@@ -53,7 +53,7 @@ pub fn download_input(day: DayAndYear, save_path: &Path, session: &str) -> io::R
         }
     }
 
-    todo!()
+    Ok(())
 }
 
 fn write_response<W: io::Write>(response: Response, mut writer: W) -> io::Result<()> {
