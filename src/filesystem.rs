@@ -86,7 +86,7 @@ pub struct AoCFilesystem {
 
 impl AoCFilesystem {
     pub fn new(config: Config) -> Self {
-        dbg!(DayAndYear::last_unlocked_puzzle());
+        // dbg!(DayAndYear::last_unlocked_puzzle());
         Self {
             uid: unsafe { libc::getuid() },
             gid: unsafe { libc::getgid() },
@@ -500,6 +500,7 @@ impl fuser::Filesystem for AoCFilesystem {
     }
 
     fn open(&mut self, _req: &fuser::Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
+        #[allow(clippy::bad_bit_mask)]
         if flags & libc::O_RDONLY != libc::O_RDONLY {
             reply.error(libc::EROFS);
             return;
