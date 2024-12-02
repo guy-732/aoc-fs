@@ -1,7 +1,7 @@
 use core::str;
 use std::{
     fs::{self, File},
-    os::unix::ffi::OsStrExt,
+    os::{fd::IntoRawFd, unix::ffi::OsStrExt},
     time::{Duration, UNIX_EPOCH},
 };
 
@@ -472,7 +472,52 @@ impl fuser::Filesystem for AoCFilesystem {
         reply.ok();
     }
 
-    fn open(&mut self, _req: &fuser::Request<'_>, _ino: u64, _flags: i32, reply: fuser::ReplyOpen) {
-        todo!()
+    fn open(&mut self, _req: &fuser::Request<'_>, ino: u64, flags: i32, reply: fuser::ReplyOpen) {
+        if flags & libc::O_RDONLY != libc::O_RDONLY {
+            reply.error(libc::EROFS);
+            return;
+        }
+
+        if ino == fuser::FUSE_ROOT_ID {
+            reply.error(libc::EISDIR);
+            return;
+        } else if ino == LATEST_ROOT_INO {
+            reply.error(libc::EINVAL);
+            return;
+        }
+
+        let latest = DayAndYear::last_unlocked_puzzle();
+        let day = DayAndYear::from_ino(ino);
+        if day.year < AOC_FIRST_YEAR || day.year > latest.year {
+            reply.error(libc::ENOENT);
+            return;
+        }
+
+        if day.day == 0 {
+            reply.error(libc::EISDIR);
+            return;
+        } else if day.day == 26 {
+            reply.error(libc::EINVAL);
+            return;
+        } else if day.day
+            > if day.year == latest.year {
+                latest.day
+            } else {
+                25
+            }
+        {
+            reply.error(libc::ENOENT);
+            return;
+        }
+
+        match self.open_day_input(day) {
+            Ok(fd) => {
+                let raw_fd = fd.into_raw_fd();
+                reply.opened(raw_fd as u64, 0);
+            }
+            Err(err) => {
+                reply.error(err);
+            }
+        }
     }
 }
