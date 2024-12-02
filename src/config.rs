@@ -5,6 +5,8 @@ use std::{
 
 use serde::Deserialize;
 
+use crate::filesystem::DayAndYear;
+
 #[derive(Debug)]
 pub struct Config {
     session_token: String,
@@ -54,6 +56,15 @@ impl Config {
     #[inline]
     pub fn cache_dir(&self) -> &Path {
         &self.cache_dir
+    }
+
+    #[inline]
+    pub fn cached_day_input(&self, day: DayAndYear) -> PathBuf {
+        let mut path = self.cache_dir().to_path_buf();
+        path.push(format!("{}", day.year));
+        path.push(format!("day{:02}.txt", day.day));
+
+        path
     }
 
     #[inline]

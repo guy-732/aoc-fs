@@ -1,5 +1,6 @@
 use core::str;
 use std::{
+    fs::{self, File},
     os::unix::ffi::OsStrExt,
     time::{Duration, UNIX_EPOCH},
 };
@@ -7,7 +8,7 @@ use std::{
 use chrono::{DateTime, Datelike, FixedOffset, Utc};
 use fuser::FileAttr;
 
-use crate::config::Config;
+use crate::{config::Config, web};
 
 // AoC started in 2015, so year 2000 day 0 can be used as a marker for the `latest` symlink at fs root
 const LATEST_ROOT_INO: u64 = DayAndYear::new(2000, 0).to_ino();
@@ -208,6 +209,54 @@ impl AoCFilesystem {
         let day = if latest.year == year { latest.day } else { 25 };
 
         return Ok(format!("day{day:02}.txt"));
+    }
+
+    fn open_day_input(&self, day: DayAndYear) -> Result<File, libc::c_int> {
+        log::trace!("open(\"{}/day{:02}.txt\")", day.year, day.day);
+
+        let input_path = self.config.cached_day_input(day);
+        match File::options().read(true).open(&input_path) {
+            Ok(f) => return Ok(f),
+            Err(e) => {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    log::error!("error opening {:?}: {}", input_path, e);
+                    return Err(e
+                        .raw_os_error()
+                        .expect("File::open() => Err(e) => e.raw_os_error()"));
+                }
+            }
+        }
+
+        let parent_input_path = input_path.parent().expect("No parent for input path???");
+        if !parent_input_path.exists() {
+            match fs::create_dir_all(parent_input_path) {
+                Ok(()) => (),
+                Err(e) => {
+                    log::error!(
+                        "Could not create cache directory {:?}: {}",
+                        parent_input_path,
+                        e
+                    );
+                    return Err(e
+                        .raw_os_error()
+                        .expect("fs::create_dir_all() => Err(e) => e.raw_os_error()"));
+                }
+            }
+        }
+
+        if let Err(err) = web::download_input(day, &input_path, self.config.session_token()) {
+            return Err(err.raw_os_error().expect("no os error"));
+        }
+
+        match File::options().read(true).open(&input_path) {
+            Ok(f) => return Ok(f),
+            Err(e) => {
+                log::error!("error opening {:?} after downloading it: {}", input_path, e);
+                return Err(e
+                    .raw_os_error()
+                    .expect("File::open() => Err(e) => e.raw_os_error()"));
+            }
+        }
     }
 }
 
@@ -431,5 +480,9 @@ impl fuser::Filesystem for AoCFilesystem {
         }
 
         reply.ok();
+    }
+
+    fn open(&mut self, _req: &fuser::Request<'_>, _ino: u64, _flags: i32, reply: fuser::ReplyOpen) {
+        todo!()
     }
 }

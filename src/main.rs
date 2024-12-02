@@ -8,6 +8,7 @@ use fuser::{mount2, MountOption};
 
 mod config;
 mod filesystem;
+mod web;
 
 fn get_styles() -> clap::builder::Styles {
     clap::builder::Styles::styled()
