@@ -115,9 +115,7 @@ impl AoCFilesystem {
     }
 
     fn file_size(&self, day_info: DayAndYear) -> u64 {
-        let mut path = self.config.cache_dir().to_path_buf();
-        path.push(day_info.year.to_string());
-        path.push(format!("day{:02}.txt", day_info.day));
+        let path = self.config.cached_day_input(day_info);
 
         match fs::metadata(path) {
             Ok(metadata) => metadata.size(),
@@ -139,7 +137,7 @@ impl AoCFilesystem {
                 let mut attr = self.getattr_template(ino);
                 attr.kind = fuser::FileType::Symlink;
                 attr.size = latest.year.to_string().len() as u64;
-                return Ok((Duration::from_secs(1), attr));
+                return Ok((Duration::ZERO, attr));
             }
 
             return Err(libc::ENOENT);
@@ -169,7 +167,7 @@ impl AoCFilesystem {
             _ => unreachable!("File type was neither Directory, RegularFile nor Symlink"),
         }
 
-        Ok((Duration::from_secs(1), attr))
+        Ok((Duration::ZERO, attr))
     }
 
     fn lookup_year(&self, year: u32, name: &str) -> Result<u64, libc::c_int> {

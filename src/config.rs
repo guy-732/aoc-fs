@@ -62,7 +62,7 @@ impl Config {
     pub fn cached_day_input(&self, day: DayAndYear) -> PathBuf {
         let mut path = self.cache_dir().to_path_buf();
         path.push(format!("{}", day.year));
-        path.push(format!("day{:02}.txt", day.day));
+        path.push(format!("day{}.txt", day.day));
 
         path
     }
