@@ -83,8 +83,8 @@ $ ls -i 2024/{day,}{0{000,},}2{.txt,.input{,.txt{,.txt}},}
 202402 2024/02.input.txt.txt     202402 2024/day00002.input.txt.txt  202402 2024/day2.input.txt.txt
 202402 2024/02.txt               202402 2024/day00002.txt            202402 2024/day2.txt
 ```
-As long as the file matches the following regex, it probably exists (if the day number is valid):
-- `/(?:day)*0*([1-9]\d*)(?:\.input)*(?:\.txt)*/`
+As long as the file matches the following regex, it probably exists (if that day's puzzle is released):
+- `/(?:day)*0*([1-9]|1[0-9]|2[0-5])(?:\.input)*(?:\.txt)*/`
 
 Also the latest symlink can match the following for the most recent puzzle of that year:
 - `/latest(?:\.input)*(?:\.txt)*/`
