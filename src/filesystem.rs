@@ -21,6 +21,7 @@ use crate::{config::Config, web};
 // AoC started in 2015, so year 2000 day 0 can be used as a marker for the `latest` symlink at fs root
 const LATEST_ROOT_INO: u64 = DayAndYear::new(2000, 0).to_ino();
 const AOC_FIRST_YEAR: u32 = 2015;
+const AOC_FIRST_YEAR_WITH_12_DAYS: u32 = 2025;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DayAndYear {
@@ -29,6 +30,17 @@ pub struct DayAndYear {
 }
 
 impl DayAndYear {
+    pub fn last_day_of_year(year: u32) -> DayAndYear {
+        DayAndYear::new(
+            year,
+            if year < AOC_FIRST_YEAR_WITH_12_DAYS {
+                25
+            } else {
+                12
+            },
+        )
+    }
+
     pub fn last_unlocked_puzzle() -> DayAndYear {
         let now = Utc::now();
         let current_time: DateTime<FixedOffset> = now.with_timezone(
@@ -36,18 +48,17 @@ impl DayAndYear {
                 .expect("FixedOffset::east_opt(3600 * 5) returned None"),
         );
 
-        let (year, day) = if current_time.month() == 12 {
-            let mut day = current_time.day();
-            if day > 25 {
-                day = 25;
+        if current_time.month() == 12 {
+            let mut day = current_time.day() as u8;
+            let last_day = DayAndYear::last_day_of_year(current_time.year() as u32);
+            if day > last_day.day {
+                day = last_day.day;
             }
 
-            (current_time.year(), day)
+            DayAndYear::new(current_time.year() as u32, day)
         } else {
-            (current_time.year() - 1, 25)
-        };
-
-        DayAndYear::new(year as u32, day as u8)
+            DayAndYear::last_day_of_year((current_time.year() - 1) as u32)
+        }
     }
 
     pub const fn new(year: u32, day: u8) -> DayAndYear {
@@ -68,12 +79,30 @@ impl DayAndYear {
     pub const fn file_type(self) -> Result<fuser::FileType, libc::c_int> {
         use fuser::FileType;
 
+        if self.year < AOC_FIRST_YEAR_WITH_12_DAYS && matches!(self.day, 1..=25) {
+            return Ok(FileType::RegularFile);
+        }
+
         match self.day {
             0 => Ok(FileType::Directory),
-            1..=25 => Ok(FileType::RegularFile),
+            1..=12 => Ok(FileType::RegularFile),
             26 => Ok(FileType::Symlink),
             _ => Err(libc::ENOENT),
         }
+    }
+}
+
+impl PartialOrd for DayAndYear {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for DayAndYear {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.year
+            .cmp(&other.year)
+            .then_with(|| self.day.cmp(&other.day))
     }
 }
 
@@ -132,7 +161,7 @@ impl AoCFilesystem {
     fn getattr_impl(&self, ino: u64) -> Result<(Duration, FileAttr), libc::c_int> {
         let latest = DayAndYear::last_unlocked_puzzle();
         let day_info = DayAndYear::from_ino(ino);
-        if day_info.year < AOC_FIRST_YEAR || day_info.year > latest.year {
+        if day_info.year < AOC_FIRST_YEAR {
             if ino == LATEST_ROOT_INO {
                 let mut attr = self.getattr_template(ino);
                 attr.kind = fuser::FileType::Symlink;
@@ -143,7 +172,7 @@ impl AoCFilesystem {
             return Err(libc::ENOENT);
         }
 
-        if day_info.year == latest.year && day_info.day <= 25 && day_info.day > latest.day {
+        if day_info > latest && !(day_info.year == latest.year && day_info.day == 26) {
             return Err(libc::ENOENT);
         }
 
@@ -187,8 +216,14 @@ impl AoCFilesystem {
             Err(_) => return Err(libc::ENOENT),
         };
 
-        if !(1..=25).contains(&day) {
-            return Err(libc::ENOENT);
+        if year < AOC_FIRST_YEAR_WITH_12_DAYS {
+            if !matches!(day, 1..=25) {
+                return Err(libc::ENOENT);
+            }
+        } else {
+            if !matches!(day, 1..=12) {
+                return Err(libc::ENOENT);
+            }
         }
 
         Ok(DayAndYear::new(year, day).to_ino())
@@ -229,7 +264,15 @@ impl AoCFilesystem {
             return Err(libc::ENOENT);
         }
 
-        let day = if latest.year == year { latest.day } else { 25 };
+        let day = if latest.year == year {
+            latest.day
+        } else {
+            if year < AOC_FIRST_YEAR_WITH_12_DAYS {
+                25
+            } else {
+                12
+            }
+        };
 
         Ok(format!("day{day:02}.txt"))
     }
@@ -471,7 +514,15 @@ impl fuser::Filesystem for AoCFilesystem {
             0
         };
 
-        let max_day = if year == latest.year { latest.day } else { 25 };
+        let max_day = if year == latest.year {
+            latest.day
+        } else {
+            if year < AOC_FIRST_YEAR_WITH_12_DAYS {
+                25
+            } else {
+                12
+            }
+        };
 
         for i in (1..=max_day).skip(offset2) {
             if reply.add(
@@ -529,7 +580,11 @@ impl fuser::Filesystem for AoCFilesystem {
             > if day.year == latest.year {
                 latest.day
             } else {
-                25
+                if day.year < AOC_FIRST_YEAR_WITH_12_DAYS {
+                    25
+                } else {
+                    12
+                }
             }
         {
             reply.error(libc::ENOENT);
